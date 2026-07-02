@@ -3,12 +3,14 @@ import { MemeCard } from './MemeCard'
 
 type MemeGridProps = {
   memes: Meme[]
-  canDelete?: boolean
+  imageCacheKey?: number
+  canManage?: boolean
+  onEdit?: (meme: Meme) => void
   onDelete?: (meme: Meme) => void
   isSearch?: boolean
 }
 
-export function MemeGrid({ memes, canDelete, onDelete, isSearch }: MemeGridProps) {
+export function MemeGrid({ memes, imageCacheKey, canManage, onEdit, onDelete, isSearch }: MemeGridProps) {
   if (memes.length === 0) {
     return (
       <div className="empty-state">
@@ -28,7 +30,9 @@ export function MemeGrid({ memes, canDelete, onDelete, isSearch }: MemeGridProps
         <MemeCard
           key={meme.id}
           meme={meme}
-          canDelete={canDelete}
+          imageCacheKey={imageCacheKey}
+          canManage={canManage}
+          onEdit={onEdit}
           onDelete={onDelete}
         />
       ))}

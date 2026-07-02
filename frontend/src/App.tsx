@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { deleteMeme } from './api/client'
 import { AddMemeForm } from './components/AddMemeForm'
+import { EditMemeForm } from './components/EditMemeForm'
 import { Header } from './components/Header'
 import { LoginForm } from './components/LoginForm'
 import { MemeGrid } from './components/MemeGrid'
@@ -19,6 +20,7 @@ function App() {
   const [showLogin, setShowLogin] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [memeToDelete, setMemeToDelete] = useState<Meme | null>(null)
+  const [memeToEdit, setMemeToEdit] = useState<Meme | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -72,7 +74,9 @@ function App() {
         {!loading && !error && (
           <MemeGrid
             memes={memes}
-            canDelete={isAuthenticated}
+            imageCacheKey={refreshKey}
+            canManage={isAuthenticated}
+            onEdit={setMemeToEdit}
             onDelete={setMemeToDelete}
             isSearch={Boolean(query.trim())}
           />
@@ -86,6 +90,17 @@ function App() {
           onCreated={() => {
             refresh()
             showToast('Мем добавлен')
+          }}
+        />
+      )}
+      {memeToEdit && (
+        <EditMemeForm
+          meme={memeToEdit}
+          imageCacheKey={refreshKey}
+          onClose={() => setMemeToEdit(null)}
+          onUpdated={() => {
+            refresh()
+            showToast('Мем обновлён')
           }}
         />
       )}

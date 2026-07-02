@@ -4,11 +4,13 @@ import { resolveImageUrl } from '../api/client'
 
 type MemeCardProps = {
   meme: Meme
-  canDelete?: boolean
+  imageCacheKey?: number
+  canManage?: boolean
+  onEdit?: (meme: Meme) => void
   onDelete?: (meme: Meme) => void
 }
 
-export function MemeCard({ meme, canDelete, onDelete }: MemeCardProps) {
+export function MemeCard({ meme, imageCacheKey, canManage, onEdit, onDelete }: MemeCardProps) {
   const [loaded, setLoaded] = useState(false)
 
   return (
@@ -16,22 +18,37 @@ export function MemeCard({ meme, canDelete, onDelete }: MemeCardProps) {
       <div className="meme-card__image-wrap">
         {!loaded && <div className="meme-card__skeleton" />}
         <img
-          src={resolveImageUrl(meme.id)}
+          src={resolveImageUrl(meme.id, imageCacheKey)}
           alt={meme.title}
           loading="lazy"
           onLoad={() => setLoaded(true)}
           className={loaded ? 'is-loaded' : ''}
         />
-        {canDelete && onDelete && (
-          <button
-            type="button"
-            className="meme-card__delete"
-            onClick={() => onDelete(meme)}
-            aria-label={`Удалить ${meme.title}`}
-            title="Удалить мем"
-          >
-            🗑
-          </button>
+        {canManage && (
+          <div className="meme-card__actions">
+            {onEdit && (
+              <button
+                type="button"
+                className="meme-card__action"
+                onClick={() => onEdit(meme)}
+                aria-label={`Редактировать ${meme.title}`}
+                title="Редактировать"
+              >
+                ✎
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                className="meme-card__action meme-card__action--danger"
+                onClick={() => onDelete(meme)}
+                aria-label={`Удалить ${meme.title}`}
+                title="Удалить"
+              >
+                🗑
+              </button>
+            )}
+          </div>
         )}
       </div>
       <div className="meme-card__body">

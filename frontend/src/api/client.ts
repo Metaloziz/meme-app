@@ -88,6 +88,25 @@ export async function deleteMeme(id: number): Promise<void> {
   }
 }
 
-export function resolveImageUrl(memeId: number): string {
-  return `${API_URL}/api/memes/${memeId}/image`
+export async function updateMeme(id: number, formData: FormData): Promise<void> {
+  const token = getToken()
+  if (!token) {
+    throw new Error('Требуется авторизация')
+  }
+
+  const response = await fetch(`${API_URL}/api/memes/${id}`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  })
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    throw new Error((body as { message?: string }).message ?? 'Не удалось обновить мем')
+  }
+}
+
+export function resolveImageUrl(memeId: number, cacheKey?: number): string {
+  const base = `${API_URL}/api/memes/${memeId}/image`
+  return cacheKey ? `${base}?v=${cacheKey}` : base
 }

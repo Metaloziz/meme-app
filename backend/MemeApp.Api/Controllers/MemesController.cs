@@ -124,6 +124,59 @@ public class MemesController(AppDbContext context) : ControllerBase
     }
 
     [Authorize]
+    [HttpPut("{id:int}")]
+    [RequestSizeLimit(MaxImageBytes)]
+    public async Task<ActionResult<MemeDto>> Update(int id, [FromForm] UpdateMemeRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.Description))
+        {
+            return BadRequest(new { message = "Название и описание обязательны." });
+        }
+
+        var meme = await context.Memes.FindAsync(id);
+        if (meme is null)
+        {
+            return NotFound();
+        }
+
+        meme.Title = request.Title.Trim();
+        meme.Description = request.Description.Trim();
+        meme.Year = request.Year ?? meme.Year;
+
+        if (request.Image is not null)
+        {
+            if (request.Image.Length == 0)
+            {
+                return BadRequest(new { message = "Изображение не может быть пустым." });
+            }
+
+            if (request.Image.Length > MaxImageBytes)
+            {
+                return BadRequest(new { message = "Максимальный размер изображения — 2 MB." });
+            }
+
+            if (!AllowedContentTypes.Contains(request.Image.ContentType))
+            {
+                return BadRequest(new { message = "Допустимые форматы: JPEG, PNG, WebP." });
+            }
+
+            await using var stream = new MemoryStream();
+            await request.Image.CopyToAsync(stream);
+            meme.ImageData = stream.ToArray();
+            meme.ImageContentType = request.Image.ContentType;
+        }
+
+        await context.SaveChangesAsync();
+
+        return Ok(new MemeDto(
+            meme.Id,
+            meme.Title,
+            meme.Description,
+            meme.Year,
+            meme.PopularityScore));
+    }
+
+    [Authorize]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
