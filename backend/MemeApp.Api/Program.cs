@@ -15,15 +15,44 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddControllers();
 
-var corsOrigins = builder.Configuration["CORS_ORIGINS"]
-    ?? Environment.GetEnvironmentVariable("CORS_ORIGINS")
-    ?? "http://localhost:5173";
+var corsOriginsRaw = builder.Configuration["CORS_ORIGINS"]
+    ?? Environment.GetEnvironmentVariable("CORS_ORIGINS");
+
+var corsOrigins = string.IsNullOrWhiteSpace(corsOriginsRaw)
+    ? "http://localhost:5173"
+    : corsOriginsRaw;
 
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins(corsOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        policy.SetIsOriginAllowed(origin =>
+        {
+            if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+            {
+                return false;
+            }
+
+            var allowedOrigins = corsOrigins
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            foreach (var allowed in allowedOrigins)
+            {
+                if (!Uri.TryCreate(allowed, UriKind.Absolute, out var allowedUri))
+                {
+                    continue;
+                }
+
+                if (string.Equals(uri.Scheme, allowedUri.Scheme, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(uri.Host, allowedUri.Host, StringComparison.OrdinalIgnoreCase)
+                    && uri.Port == allowedUri.Port)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        })
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
