@@ -64,11 +64,16 @@ static string ResolveConnectionString(IConfiguration configuration)
 
 static string ParseDatabaseUrl(string databaseUrl)
 {
-    var uri = new Uri(databaseUrl);
+    var normalizedUrl = databaseUrl.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase)
+        ? "postgresql://" + databaseUrl["postgres://".Length..]
+        : databaseUrl;
+
+    var uri = new Uri(normalizedUrl);
     var userInfo = uri.UserInfo.Split(':', 2);
     var username = Uri.UnescapeDataString(userInfo[0]);
     var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : string.Empty;
     var database = uri.AbsolutePath.TrimStart('/');
+    var dbPort = uri.Port > 0 ? uri.Port : 5432;
 
-    return $"Host={uri.Host};Port={uri.Port};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true";
+    return $"Host={uri.Host};Port={dbPort};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true";
 }
