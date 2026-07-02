@@ -16,23 +16,26 @@ import './App.css'
 function App() {
   const { isAuthenticated } = useAuth()
   const [query, setQuery] = useState('')
-  const [refreshKey, setRefreshKey] = useState(0)
   const [showLogin, setShowLogin] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [memeToDelete, setMemeToDelete] = useState<Meme | null>(null)
   const [memeToEdit, setMemeToEdit] = useState<Meme | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [imageVersions, setImageVersions] = useState<Record<number, number>>({})
 
-  const { memes, loading, error } = useMemes(query, refreshKey)
-
-  function refresh() {
-    setRefreshKey((value) => value + 1)
-  }
+  const { memes, loading, error, removeMeme, upsertMeme } = useMemes(query)
 
   function showToast(message: string) {
     setToast(message)
     setTimeout(() => setToast(null), 3000)
+  }
+
+  function bumpImageVersion(memeId: number) {
+    setImageVersions((current) => ({
+      ...current,
+      [memeId]: (current[memeId] ?? 0) + 1,
+    }))
   }
 
   async function confirmDelete() {
@@ -43,8 +46,8 @@ function App() {
     setDeleting(true)
     try {
       await deleteMeme(memeToDelete.id)
+      removeMeme(memeToDelete.id)
       setMemeToDelete(null)
-      refresh()
       showToast('Мем удалён')
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Ошибка удаления')
@@ -74,7 +77,7 @@ function App() {
         {!loading && !error && (
           <MemeGrid
             memes={memes}
-            imageCacheKey={refreshKey}
+            imageVersions={imageVersions}
             canManage={isAuthenticated}
             onEdit={setMemeToEdit}
             onDelete={setMemeToDelete}
@@ -87,8 +90,9 @@ function App() {
       {showAdd && (
         <AddMemeForm
           onClose={() => setShowAdd(false)}
-          onCreated={() => {
-            refresh()
+          onCreated={(meme) => {
+            upsertMeme(meme)
+            bumpImageVersion(meme.id)
             showToast('Мем добавлен')
           }}
         />
@@ -96,10 +100,13 @@ function App() {
       {memeToEdit && (
         <EditMemeForm
           meme={memeToEdit}
-          imageCacheKey={refreshKey}
+          imageVersion={imageVersions[memeToEdit.id]}
           onClose={() => setMemeToEdit(null)}
-          onUpdated={() => {
-            refresh()
+          onUpdated={(meme, imageChanged) => {
+            upsertMeme(meme)
+            if (imageChanged) {
+              bumpImageVersion(meme.id)
+            }
             showToast('Мем обновлён')
           }}
         />

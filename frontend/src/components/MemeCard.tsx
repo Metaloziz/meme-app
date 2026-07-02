@@ -1,24 +1,28 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Meme } from '../types/meme'
 import { resolveImageUrl } from '../api/client'
 
 type MemeCardProps = {
   meme: Meme
-  imageCacheKey?: number
+  imageVersion?: number
   canManage?: boolean
   onEdit?: (meme: Meme) => void
   onDelete?: (meme: Meme) => void
 }
 
-export function MemeCard({ meme, imageCacheKey, canManage, onEdit, onDelete }: MemeCardProps) {
+export function MemeCard({ meme, imageVersion, canManage, onEdit, onDelete }: MemeCardProps) {
   const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    setLoaded(false)
+  }, [meme.id, imageVersion])
 
   return (
     <article className="meme-card">
       <div className="meme-card__image-wrap">
         {!loaded && <div className="meme-card__skeleton" />}
         <img
-          src={resolveImageUrl(meme.id, imageCacheKey)}
+          src={resolveImageUrl(meme.id, imageVersion)}
           alt={meme.title}
           loading="lazy"
           onLoad={() => setLoaded(true)}

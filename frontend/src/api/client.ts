@@ -1,3 +1,5 @@
+import type { Meme } from '../types/meme'
+
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:5202'
 const TOKEN_KEY = 'meme_app_token'
 
@@ -37,7 +39,7 @@ export function logout(): void {
   setToken(null)
 }
 
-export async function fetchMemes(query?: string) {
+export async function fetchMemes(query?: string): Promise<Meme[]> {
   const params = new URLSearchParams()
   if (query?.trim()) {
     params.set('q', query.trim())
@@ -53,7 +55,7 @@ export async function fetchMemes(query?: string) {
   return response.json()
 }
 
-export async function createMeme(formData: FormData): Promise<void> {
+export async function createMeme(formData: FormData): Promise<Meme> {
   const token = getToken()
   if (!token) {
     throw new Error('Требуется авторизация')
@@ -69,6 +71,8 @@ export async function createMeme(formData: FormData): Promise<void> {
     const body = await response.json().catch(() => ({}))
     throw new Error((body as { message?: string }).message ?? 'Не удалось добавить мем')
   }
+
+  return response.json()
 }
 
 export async function deleteMeme(id: number): Promise<void> {
@@ -88,7 +92,7 @@ export async function deleteMeme(id: number): Promise<void> {
   }
 }
 
-export async function updateMeme(id: number, formData: FormData): Promise<void> {
+export async function updateMeme(id: number, formData: FormData): Promise<Meme> {
   const token = getToken()
   if (!token) {
     throw new Error('Требуется авторизация')
@@ -104,6 +108,8 @@ export async function updateMeme(id: number, formData: FormData): Promise<void> 
     const body = await response.json().catch(() => ({}))
     throw new Error((body as { message?: string }).message ?? 'Не удалось обновить мем')
   }
+
+  return response.json()
 }
 
 export function resolveImageUrl(memeId: number, cacheKey?: number): string {

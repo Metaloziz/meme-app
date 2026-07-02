@@ -5,12 +5,12 @@ import type { Meme } from '../types/meme'
 
 type EditMemeFormProps = {
   meme: Meme
-  imageCacheKey: number
+  imageVersion?: number
   onClose: () => void
-  onUpdated: () => void
+  onUpdated: (meme: Meme, imageChanged: boolean) => void
 }
 
-export function EditMemeForm({ meme, imageCacheKey, onClose, onUpdated }: EditMemeFormProps) {
+export function EditMemeForm({ meme, imageVersion, onClose, onUpdated }: EditMemeFormProps) {
   const [title, setTitle] = useState(meme.title)
   const [description, setDescription] = useState(meme.description)
   const [year, setYear] = useState(String(meme.year))
@@ -19,7 +19,7 @@ export function EditMemeForm({ meme, imageCacheKey, onClose, onUpdated }: EditMe
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const currentImageUrl = `${resolveImageUrl(meme.id)}?v=${imageCacheKey}`
+  const currentImageUrl = resolveImageUrl(meme.id, imageVersion)
 
   function handleFile(file: File | null) {
     if (previewUrl?.startsWith('blob:')) {
@@ -52,8 +52,8 @@ export function EditMemeForm({ meme, imageCacheKey, onClose, onUpdated }: EditMe
     }
 
     try {
-      await updateMeme(meme.id, formData)
-      onUpdated()
+      const updated = await updateMeme(meme.id, formData)
+      onUpdated(updated, image !== null)
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось сохранить изменения')

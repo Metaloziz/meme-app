@@ -1,10 +1,11 @@
 import { useState, type DragEvent, type FormEvent } from 'react'
 import { createMeme } from '../api/client'
 import { Modal } from './ui/Modal'
+import type { Meme } from '../types/meme'
 
 type AddMemeFormProps = {
   onClose: () => void
-  onCreated: () => void
+  onCreated: (meme: Meme) => void
 }
 
 export function AddMemeForm({ onClose, onCreated }: AddMemeFormProps) {
@@ -51,8 +52,8 @@ export function AddMemeForm({ onClose, onCreated }: AddMemeFormProps) {
     formData.append('image', image)
 
     try {
-      await createMeme(formData)
-      onCreated()
+      const created = await createMeme(formData)
+      onCreated(created)
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось добавить мем')

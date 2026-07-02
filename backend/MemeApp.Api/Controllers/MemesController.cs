@@ -1,55 +1,26 @@
-using MemeApp.Api.Data;
+using MemeApp.Api.Constants;
 using MemeApp.Api.Dtos;
-using MemeApp.Api.Models;
+using MemeApp.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace MemeApp.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class MemesController(AppDbContext context) : ControllerBase
+public class MemesController(IMemeService memeService) : ControllerBase
 {
-    private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-    };
-
-    private const long MaxImageBytes = 2 * 1024 * 1024;
-
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<MemeDto>>> GetAll([FromQuery] string? q)
+    public async Task<ActionResult<IEnumerable<MemeDto>>> GetAll([FromQuery] string? q, CancellationToken cancellationToken)
     {
-        var query = context.Memes.AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(q))
-        {
-            var term = q.Trim().ToLower();
-            query = query.Where(m =>
-                m.Title.ToLower().Contains(term) ||
-                m.Description.ToLower().Contains(term));
-        }
-
-        var memes = await query
-            .OrderByDescending(m => m.PopularityScore)
-            .ThenBy(m => m.Title)
-            .Select(m => new MemeDto(m.Id, m.Title, m.Description, m.Year, m.PopularityScore))
-            .ToListAsync();
-
+        var memes = await memeService.GetAllAsync(q, cancellationToken);
         return Ok(memes);
     }
 
     [HttpGet("{id:int}")]
-    public async Task<ActionResult<MemeDto>> GetById(int id)
+    public async Task<ActionResult<MemeDto>> GetById(int id, CancellationToken cancellationToken)
     {
-        var meme = await context.Memes
-            .Where(m => m.Id == id)
-            .Select(m => new MemeDto(m.Id, m.Title, m.Description, m.Year, m.PopularityScore))
-            .FirstOrDefaultAsync();
-
+        var meme = await memeService.GetByIdAsync(id, cancellationToken);
         if (meme is null)
         {
             return NotFound();
@@ -59,135 +30,60 @@ public class MemesController(AppDbContext context) : ControllerBase
     }
 
     [HttpGet("{id:int}/image")]
-    public async Task<IActionResult> GetImage(int id)
+    public async Task<IActionResult> GetImage(int id, CancellationToken cancellationToken)
     {
-        var meme = await context.Memes
-            .Where(m => m.Id == id)
-            .Select(m => new { m.ImageData, m.ImageContentType })
-            .FirstOrDefaultAsync();
-
-        if (meme?.ImageData is null || meme.ImageData.Length == 0)
+        var image = await memeService.GetImageAsync(id, cancellationToken);
+        if (image is null)
         {
             return NotFound();
         }
 
-        return File(meme.ImageData, meme.ImageContentType ?? "image/jpeg");
+        return File(image.Value.Data, image.Value.ContentType);
     }
 
     [Authorize]
     [HttpPost]
-    [RequestSizeLimit(MaxImageBytes)]
-    public async Task<ActionResult<MemeDto>> Create([FromForm] CreateMemeRequest request)
+    [RequestSizeLimit(MemeConstants.MaxImageBytes)]
+    public async Task<ActionResult<MemeDto>> Create([FromForm] CreateMemeRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.Description))
+        var (meme, error) = await memeService.CreateAsync(request, cancellationToken);
+        if (error is not null)
         {
-            return BadRequest(new { message = "Название и описание обязательны." });
+            return BadRequest(new ErrorResponse(error));
         }
 
-        if (request.Image.Length == 0)
-        {
-            return BadRequest(new { message = "Изображение обязательно." });
-        }
-
-        if (request.Image.Length > MaxImageBytes)
-        {
-            return BadRequest(new { message = "Максимальный размер изображения — 2 MB." });
-        }
-
-        if (!AllowedContentTypes.Contains(request.Image.ContentType))
-        {
-            return BadRequest(new { message = "Допустимые форматы: JPEG, PNG, WebP." });
-        }
-
-        await using var stream = new MemoryStream();
-        await request.Image.CopyToAsync(stream);
-
-        var meme = new Meme
-        {
-            Title = request.Title.Trim(),
-            Description = request.Description.Trim(),
-            ImageData = stream.ToArray(),
-            ImageContentType = request.Image.ContentType,
-            Year = request.Year ?? DateTime.UtcNow.Year,
-            PopularityScore = 50,
-        };
-
-        context.Memes.Add(meme);
-        await context.SaveChangesAsync();
-
-        return CreatedAtAction(nameof(GetById), new { id = meme.Id }, new MemeDto(
-            meme.Id,
-            meme.Title,
-            meme.Description,
-            meme.Year,
-            meme.PopularityScore));
+        return CreatedAtAction(nameof(GetById), new { id = meme!.Id }, meme);
     }
 
     [Authorize]
     [HttpPut("{id:int}")]
-    [RequestSizeLimit(MaxImageBytes)]
-    public async Task<ActionResult<MemeDto>> Update(int id, [FromForm] UpdateMemeRequest request)
+    [RequestSizeLimit(MemeConstants.MaxImageBytes)]
+    public async Task<ActionResult<MemeDto>> Update(int id, [FromForm] UpdateMemeRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.Description))
+        var (meme, error) = await memeService.UpdateAsync(id, request, cancellationToken);
+        if (error is not null)
         {
-            return BadRequest(new { message = "Название и описание обязательны." });
+            return BadRequest(new ErrorResponse(error));
         }
 
-        var meme = await context.Memes.FindAsync(id);
         if (meme is null)
         {
             return NotFound();
         }
 
-        meme.Title = request.Title.Trim();
-        meme.Description = request.Description.Trim();
-        meme.Year = request.Year ?? meme.Year;
-
-        if (request.Image is not null)
-        {
-            if (request.Image.Length == 0)
-            {
-                return BadRequest(new { message = "Изображение не может быть пустым." });
-            }
-
-            if (request.Image.Length > MaxImageBytes)
-            {
-                return BadRequest(new { message = "Максимальный размер изображения — 2 MB." });
-            }
-
-            if (!AllowedContentTypes.Contains(request.Image.ContentType))
-            {
-                return BadRequest(new { message = "Допустимые форматы: JPEG, PNG, WebP." });
-            }
-
-            await using var stream = new MemoryStream();
-            await request.Image.CopyToAsync(stream);
-            meme.ImageData = stream.ToArray();
-            meme.ImageContentType = request.Image.ContentType;
-        }
-
-        await context.SaveChangesAsync();
-
-        return Ok(new MemeDto(
-            meme.Id,
-            meme.Title,
-            meme.Description,
-            meme.Year,
-            meme.PopularityScore));
+        return Ok(meme);
     }
 
     [Authorize]
     [HttpDelete("{id:int}")]
-    public async Task<IActionResult> Delete(int id)
+    public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
     {
-        var meme = await context.Memes.FindAsync(id);
-        if (meme is null)
+        var deleted = await memeService.DeleteAsync(id, cancellationToken);
+        if (!deleted)
         {
             return NotFound();
         }
 
-        context.Memes.Remove(meme);
-        await context.SaveChangesAsync();
         return NoContent();
     }
 }
