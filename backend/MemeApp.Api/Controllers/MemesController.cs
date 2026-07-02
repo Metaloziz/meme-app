@@ -21,7 +21,7 @@ public class MemesController(AppDbContext context) : ControllerBase
     private const long MaxImageBytes = 2 * 1024 * 1024;
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Meme>>> GetAll([FromQuery] string? q)
+    public async Task<ActionResult<IEnumerable<MemeDto>>> GetAll([FromQuery] string? q)
     {
         var query = context.Memes.AsQueryable();
 
@@ -36,34 +36,18 @@ public class MemesController(AppDbContext context) : ControllerBase
         var memes = await query
             .OrderByDescending(m => m.PopularityScore)
             .ThenBy(m => m.Title)
-            .Select(m => new Meme
-            {
-                Id = m.Id,
-                Title = m.Title,
-                Description = m.Description,
-                ImageUrl = m.ImageUrl,
-                Year = m.Year,
-                PopularityScore = m.PopularityScore,
-            })
+            .Select(m => new MemeDto(m.Id, m.Title, m.Description, m.Year, m.PopularityScore))
             .ToListAsync();
 
         return Ok(memes);
     }
 
     [HttpGet("{id:int}")]
-    public async Task<ActionResult<Meme>> GetById(int id)
+    public async Task<ActionResult<MemeDto>> GetById(int id)
     {
         var meme = await context.Memes
             .Where(m => m.Id == id)
-            .Select(m => new Meme
-            {
-                Id = m.Id,
-                Title = m.Title,
-                Description = m.Description,
-                ImageUrl = m.ImageUrl,
-                Year = m.Year,
-                PopularityScore = m.PopularityScore,
-            })
+            .Select(m => new MemeDto(m.Id, m.Title, m.Description, m.Year, m.PopularityScore))
             .FirstOrDefaultAsync();
 
         if (meme is null)
@@ -93,7 +77,7 @@ public class MemesController(AppDbContext context) : ControllerBase
     [Authorize]
     [HttpPost]
     [RequestSizeLimit(MaxImageBytes)]
-    public async Task<ActionResult<Meme>> Create([FromForm] CreateMemeRequest request)
+    public async Task<ActionResult<MemeDto>> Create([FromForm] CreateMemeRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.Description))
         {
@@ -131,13 +115,11 @@ public class MemesController(AppDbContext context) : ControllerBase
         context.Memes.Add(meme);
         await context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetById), new { id = meme.Id }, new Meme
-        {
-            Id = meme.Id,
-            Title = meme.Title,
-            Description = meme.Description,
-            Year = meme.Year,
-            PopularityScore = meme.PopularityScore,
-        });
+        return CreatedAtAction(nameof(GetById), new { id = meme.Id }, new MemeDto(
+            meme.Id,
+            meme.Title,
+            meme.Description,
+            meme.Year,
+            meme.PopularityScore));
     }
 }
