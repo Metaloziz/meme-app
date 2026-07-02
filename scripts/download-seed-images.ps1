@@ -1,5 +1,5 @@
 param(
-    [int]$MinBytes = 10240,
+    [int]$MinBytes = 15360,
     [int]$DelaySeconds = 5
 )
 
@@ -21,17 +21,21 @@ function Save-GeneratedImage {
         [System.Drawing.Color]$Color
     )
 
-    $bitmap = New-Object System.Drawing.Bitmap 800, 600
+    $bitmap = New-Object System.Drawing.Bitmap 1200, 900
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
     $graphics.Clear($Color)
-    $font = New-Object System.Drawing.Font("Segoe UI", 36, [System.Drawing.FontStyle]::Bold)
+    $font = New-Object System.Drawing.Font("Segoe UI", 48, [System.Drawing.FontStyle]::Bold)
     $brush = [System.Drawing.Brushes]::White
     $size = $graphics.MeasureString($Label, $font)
-    $x = (800 - $size.Width) / 2
-    $y = (600 - $size.Height) / 2
+    $x = (1200 - $size.Width) / 2
+    $y = (900 - $size.Height) / 2
     $graphics.DrawString($Label, $font, $brush, $x, $y)
     $graphics.Dispose()
-    $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+
+    $encoder = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq "image/jpeg" }
+    $encoderParams = New-Object System.Drawing.Imaging.EncoderParameters(1)
+    $encoderParams.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, 95)
+    $bitmap.Save($Path, $encoder, $encoderParams)
     $bitmap.Dispose()
 }
 
