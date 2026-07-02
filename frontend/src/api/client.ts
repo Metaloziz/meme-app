@@ -71,6 +71,23 @@ export async function createMeme(formData: FormData): Promise<void> {
   }
 }
 
+export async function deleteMeme(id: number): Promise<void> {
+  const token = getToken()
+  if (!token) {
+    throw new Error('Требуется авторизация')
+  }
+
+  const response = await fetch(`${API_URL}/api/memes/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+
+  if (!response.ok && response.status !== 204) {
+    const body = await response.json().catch(() => ({}))
+    throw new Error((body as { message?: string }).message ?? 'Не удалось удалить мем')
+  }
+}
+
 export function resolveImageUrl(memeId: number): string {
   return `${API_URL}/api/memes/${memeId}/image`
 }

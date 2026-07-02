@@ -122,4 +122,19 @@ public class MemesController(AppDbContext context) : ControllerBase
             meme.Year,
             meme.PopularityScore));
     }
+
+    [Authorize]
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var meme = await context.Memes.FindAsync(id);
+        if (meme is null)
+        {
+            return NotFound();
+        }
+
+        context.Memes.Remove(meme);
+        await context.SaveChangesAsync();
+        return NoContent();
+    }
 }

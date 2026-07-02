@@ -5,6 +5,8 @@ namespace MemeApp.Api.Data;
 
 public static class SeedData
 {
+    private const int PlaceholderMaxBytes = 15 * 1024;
+
     private static readonly (string Title, string Description, string FileName, int Year, int Score)[] SeedMemes =
     [
         ("Doge", "Кадзуми Сато и её собака Кабосу — классика интернет-юмора с Comic Sans.", "doge.jpg", 2013, 98),
@@ -45,20 +47,25 @@ public static class SeedData
 
     public static async Task EnsureSeedImagesAsync(AppDbContext context, string seedImagesPath)
     {
-        var memesWithoutImages = await context.Memes
-            .Where(m => m.ImageData == null || m.ImageData.Length == 0)
+        var fileMap = SeedMemes.ToDictionary(s => s.Title, s => s.FileName);
+        var memes = await context.Memes
+            .Where(m => fileMap.Keys.Contains(m.Title))
             .ToListAsync();
 
-        if (memesWithoutImages.Count == 0)
-        {
-            return;
-        }
+        var updated = false;
 
-        var fileMap = SeedMemes.ToDictionary(s => s.Title, s => s.FileName);
-
-        foreach (var meme in memesWithoutImages)
+        foreach (var meme in memes)
         {
             if (!fileMap.TryGetValue(meme.Title, out var fileName))
+            {
+                continue;
+            }
+
+            var needsUpdate = meme.ImageData is null
+                || meme.ImageData.Length == 0
+                || meme.ImageData.Length < PlaceholderMaxBytes;
+
+            if (!needsUpdate)
             {
                 continue;
             }
@@ -66,10 +73,13 @@ public static class SeedData
             var (imageData, contentType) = await LoadSeedImageAsync(seedImagesPath, fileName);
             meme.ImageData = imageData;
             meme.ImageContentType = contentType;
-            meme.ImageUrl = null;
+            updated = true;
         }
 
-        await context.SaveChangesAsync();
+        if (updated)
+        {
+            await context.SaveChangesAsync();
+        }
     }
 
     private static async Task<(byte[] Data, string ContentType)> LoadSeedImageAsync(string seedImagesPath, string fileName)
@@ -81,6 +91,11 @@ public static class SeedData
         }
 
         var data = await File.ReadAllBytesAsync(path);
+        if (data.Length < PlaceholderMaxBytes)
+        {
+            throw new InvalidOperationException($"Seed image {fileName} is too small ({data.Length} bytes). Run scripts/download-seed-images.ps1");
+        }
+
         var contentType = fileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
             ? "image/png"
             : "image/jpeg";

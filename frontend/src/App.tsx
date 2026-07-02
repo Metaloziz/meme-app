@@ -1,90 +1,104 @@
-import { useCallback, useEffect, useState } from 'react'
-import { fetchMemes } from './api/client'
+import { useState } from 'react'
+import { deleteMeme } from './api/client'
 import { AddMemeForm } from './components/AddMemeForm'
+import { Header } from './components/Header'
 import { LoginForm } from './components/LoginForm'
 import { MemeGrid } from './components/MemeGrid'
-import { SearchBar } from './components/SearchBar'
+import { ConfirmDialog } from './components/ui/ConfirmDialog'
+import { Spinner } from './components/ui/Spinner'
+import { Toast } from './components/ui/Toast'
 import { useAuth } from './context/AuthContext'
+import { useMemes } from './hooks/useMemes'
 import type { Meme } from './types/meme'
 import './App.css'
 
 function App() {
-  const { isAuthenticated, logout } = useAuth()
-  const [memes, setMemes] = useState<Meme[]>([])
+  const { isAuthenticated } = useAuth()
   const [query, setQuery] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [showLogin, setShowLogin] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [showLogin, setShowLogin] = useState(false)
+  const [showAdd, setShowAdd] = useState(false)
+  const [memeToDelete, setMemeToDelete] = useState<Meme | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
 
-  const loadMemes = useCallback(async (searchQuery: string, signal: AbortSignal) => {
+  const { memes, loading, error } = useMemes(query, refreshKey)
+
+  function refresh() {
+    setRefreshKey((value) => value + 1)
+  }
+
+  function showToast(message: string) {
+    setToast(message)
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  async function confirmDelete() {
+    if (!memeToDelete) {
+      return
+    }
+
+    setDeleting(true)
     try {
-      setLoading(true)
-      setError(null)
-      const data = await fetchMemes(searchQuery)
-      if (!signal.aborted) {
-        setMemes(data)
-      }
-    } catch {
-      if (!signal.aborted) {
-        setError('API недоступен. Проверьте, что бэкенд запущен.')
-      }
+      await deleteMeme(memeToDelete.id)
+      setMemeToDelete(null)
+      refresh()
+      showToast('Мем удалён')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Ошибка удаления')
     } finally {
-      if (!signal.aborted) {
-        setLoading(false)
-      }
+      setDeleting(false)
     }
-  }, [])
-
-  useEffect(() => {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => {
-      void loadMemes(query, controller.signal)
-    }, 300)
-
-    return () => {
-      controller.abort()
-      clearTimeout(timeout)
-    }
-  }, [query, refreshKey, loadMemes])
+  }
 
   return (
     <div className="app">
-      <header className="hero">
-        <div className="hero-top">
-          <div>
-            <p className="eyebrow">Top Memes Archive</p>
-            <h1>Самые популярные мемы интернета</h1>
-          </div>
-          <div className="auth-actions">
-            {isAuthenticated ? (
-              <button type="button" className="btn-secondary" onClick={logout}>
-                Выйти
-              </button>
-            ) : (
-              <button type="button" className="btn-primary" onClick={() => setShowLogin(true)}>
-                Войти
-              </button>
-            )}
-          </div>
-        </div>
-        <p className="subtitle">
-          Каталог легендарных мемов с рейтингом популярности. Данные приходят из C# API.
-        </p>
-        <SearchBar value={query} onChange={setQuery} />
-      </header>
-
-      {isAuthenticated && (
-        <AddMemeForm onCreated={() => setRefreshKey((value) => value + 1)} />
-      )}
+      <Header
+        memeCount={memes.length}
+        query={query}
+        onQueryChange={setQuery}
+        onLoginClick={() => setShowLogin(true)}
+        onAddClick={() => setShowAdd(true)}
+      />
 
       <main>
-        {loading && <p className="status">Загрузка...</p>}
+        {loading && (
+          <div className="loading-state">
+            <Spinner />
+            <p>Загрузка мемов...</p>
+          </div>
+        )}
         {error && <p className="status error">{error}</p>}
-        {!loading && !error && <MemeGrid memes={memes} />}
+        {!loading && !error && (
+          <MemeGrid
+            memes={memes}
+            canDelete={isAuthenticated}
+            onDelete={setMemeToDelete}
+            isSearch={Boolean(query.trim())}
+          />
+        )}
       </main>
 
       {showLogin && <LoginForm onClose={() => setShowLogin(false)} />}
+      {showAdd && (
+        <AddMemeForm
+          onClose={() => setShowAdd(false)}
+          onCreated={() => {
+            refresh()
+            showToast('Мем добавлен')
+          }}
+        />
+      )}
+      {memeToDelete && (
+        <ConfirmDialog
+          title="Удалить мем?"
+          message={`«${memeToDelete.title}» будет удалён без возможности восстановления.`}
+          onConfirm={confirmDelete}
+          onCancel={() => setMemeToDelete(null)}
+          loading={deleting}
+        />
+      )}
+      {toast && <Toast message={toast} />}
     </div>
   )
 }

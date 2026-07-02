@@ -1,18 +1,37 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type DragEvent, type FormEvent } from 'react'
 import { createMeme } from '../api/client'
+import { Modal } from './ui/Modal'
 
 type AddMemeFormProps = {
+  onClose: () => void
   onCreated: () => void
 }
 
-export function AddMemeForm({ onCreated }: AddMemeFormProps) {
+export function AddMemeForm({ onClose, onCreated }: AddMemeFormProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [year, setYear] = useState(String(new Date().getFullYear()))
   const [image, setImage] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
+
+  function handleFile(file: File | null) {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl)
+    }
+
+    setImage(file)
+    setPreviewUrl(file ? URL.createObjectURL(file) : null)
+  }
+
+  function handleDrop(event: DragEvent) {
+    event.preventDefault()
+    const file = event.dataTransfer.files[0]
+    if (file) {
+      handleFile(file)
+    }
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -24,7 +43,6 @@ export function AddMemeForm({ onCreated }: AddMemeFormProps) {
 
     setLoading(true)
     setError(null)
-    setSuccess(false)
 
     const formData = new FormData()
     formData.append('title', title.trim())
@@ -34,12 +52,8 @@ export function AddMemeForm({ onCreated }: AddMemeFormProps) {
 
     try {
       await createMeme(formData)
-      setTitle('')
-      setDescription('')
-      setYear(String(new Date().getFullYear()))
-      setImage(null)
-      setSuccess(true)
       onCreated()
+      onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось добавить мем')
     } finally {
@@ -48,9 +62,8 @@ export function AddMemeForm({ onCreated }: AddMemeFormProps) {
   }
 
   return (
-    <section className="add-meme-form">
-      <h2>Добавить мем</h2>
-      <form onSubmit={handleSubmit}>
+    <Modal title="Добавить мем" onClose={onClose} wide>
+      <form className="form" onSubmit={handleSubmit}>
         <label>
           Название
           <input value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={120} />
@@ -75,21 +88,33 @@ export function AddMemeForm({ onCreated }: AddMemeFormProps) {
             max={2100}
           />
         </label>
-        <label>
-          Изображение (JPEG, PNG, WebP, до 2 MB)
+        <div
+          className="dropzone"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleDrop}
+        >
+          {previewUrl ? (
+            <img src={previewUrl} alt="Превью" className="dropzone__preview" />
+          ) : (
+            <p>Перетащите изображение сюда или выберите файл</p>
+          )}
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp"
-            onChange={(e) => setImage(e.target.files?.[0] ?? null)}
-            required
+            onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+            required={!image}
           />
-        </label>
+        </div>
         {error && <p className="form-error">{error}</p>}
-        {success && <p className="form-success">Мем успешно добавлен!</p>}
-        <button type="submit" className="btn-primary" disabled={loading}>
-          {loading ? 'Сохранение...' : 'Добавить мем'}
-        </button>
+        <div className="modal-actions">
+          <button type="button" className="btn-secondary" onClick={onClose}>
+            Отмена
+          </button>
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? 'Сохранение...' : 'Добавить'}
+          </button>
+        </div>
       </form>
-    </section>
+    </Modal>
   )
 }

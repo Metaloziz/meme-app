@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { Modal } from './ui/Modal'
 import { useAuth } from '../context/AuthContext'
 
 type LoginFormProps = {
@@ -28,9 +29,8 @@ export function LoginForm({ onClose }: LoginFormProps) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}>
-        <h2>Вход администратора</h2>
+    <Modal title="Вход администратора" onClose={onClose}>
+      <form className="form" onSubmit={handleSubmit}>
         <label>
           Email
           <input
@@ -61,6 +61,6 @@ export function LoginForm({ onClose }: LoginFormProps) {
           </button>
         </div>
       </form>
-    </div>
+    </Modal>
   )
 }
