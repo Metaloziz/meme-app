@@ -9,7 +9,7 @@ export function MemeCard({ meme }: MemeCardProps) {
   return (
     <article className="meme-card">
       <div className="meme-card__image-wrap">
-        <img src={resolveImageUrl(meme.imageUrl)} alt={meme.title} loading="lazy" />
+        <img src={resolveImageUrl(meme.id)} alt={meme.title} loading="lazy" />
       </div>
       <div className="meme-card__body">
         <div className="meme-card__meta">

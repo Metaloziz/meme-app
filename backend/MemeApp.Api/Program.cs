@@ -1,5 +1,9 @@
+using System.Text;
 using MemeApp.Api.Data;
+using MemeApp.Api.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +18,26 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
 builder.Services.AddControllers();
+builder.Services.AddSingleton<JwtTokenService>();
+
+var jwtSecret = builder.Configuration["JWT_SECRET"]
+    ?? Environment.GetEnvironmentVariable("JWT_SECRET")
+    ?? "local-dev-secret-change-in-production-32chars";
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+        };
+    });
+
+builder.Services.AddAuthorization();
 
 var corsOriginsRaw = builder.Configuration["CORS_ORIGINS"]
     ?? Environment.GetEnvironmentVariable("CORS_ORIGINS");
@@ -60,11 +84,14 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+var seedImagesPath = Path.Combine(app.Environment.ContentRootPath, "SeedImages");
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
-    await SeedData.InitializeAsync(db);
+    await SeedData.InitializeAsync(db, seedImagesPath);
+    await SeedData.EnsureSeedImagesAsync(db, seedImagesPath);
 }
 
 app.UseCors();
@@ -73,6 +100,9 @@ if (app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapControllers();
